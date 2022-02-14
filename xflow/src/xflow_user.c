@@ -33,11 +33,37 @@
 #define PATH_MAX 4096
 #endif
 
+#define MAXLEN 64
+char iface[32];
 void  print_usage(){
-  printf("./xflow_user -t <format type> -w <output file>\n");
+	printf("./xflow_user -i <interface> \n");
 }
 
-const char *pin_base_dir =  "/sys/fs/bpf/xflow";
+
+static const struct option long_options[] = {
+	{"interface", required_argument,       0,  'i' },
+	{0,           0, NULL,  0   }
+};
+
+int parse_params(int argc, char *argv[]) {
+    int opt= 0;
+    int long_index =0;
+
+    while ((opt = getopt_long(argc, argv,"i:", 
+                   long_options, &long_index )) != -1) {
+      switch (opt) {
+		  case 'i' : 
+		  	strncpy(iface, optarg, 32);
+		  	break;
+		  default: 
+		  	print_usage(); 
+		  	exit(EXIT_FAILURE);
+        }
+    }
+    return 0;
+}
+
+char pin_base_dir[MAXLEN] =  "/sys/fs/bpf/xflow/";
 
 void get_ip_string(__u32 ip, char *ip_string) {
     unsigned char bytes[4];
@@ -52,21 +78,24 @@ void get_ip_string(__u32 ip, char *ip_string) {
 int main(int argc, char **argv)
 {
 	
-	int xflow_map_fd;
+	int xflow_metric_map_fd;
 	flow_id flow_key = {};
 	flow_id next_flow_key;
 	flow_counters my_flow_counters;
-	char map_name[] = "xflow_map";
+	char map_name[] = "xflow_metric_map";
 	char saddr_string[32];
 	char daddr_string[32];
-	// if(parse_params(argc,argv)!=0){
-	// 	fprintf(stderr, "ERR: parsing params\n");
-	// 	return EXIT_FAIL_OPTION;
-	// }
+
+	if(parse_params(argc,argv)!=0){
+		fprintf(stderr, "ERR: parsing params\n");
+		return EXIT_FAIL_OPTION;
+	}
+
+	strcat(pin_base_dir, iface);
 
 	/* Open the map for geneve config */
-	xflow_map_fd = open_bpf_map_file(pin_base_dir, map_name, NULL);
-	if (xflow_map_fd < 0) {
+	xflow_metric_map_fd = open_bpf_map_file(pin_base_dir, map_name, NULL);
+	if (xflow_metric_map_fd < 0) {
 	  	fprintf(stderr,"ERR: opening map\n");
 		return EXIT_FAIL_BPF;
 	}
@@ -76,9 +105,9 @@ int main(int argc, char **argv)
 	/* Get the flow_maps iteratively using bpf_map_get_next_key() */
 	/* TODO: Convert it into a known format */
 	int entry=0;
-	printf("####### Flow Counters from %s/%s #######\n", pin_base_dir, map_name);
-	while (bpf_map_get_next_key(xflow_map_fd, &flow_key, &next_flow_key) == 0) {
-		bpf_map_lookup_elem(xflow_map_fd, &next_flow_key, &my_flow_counters);
+	printf("####### Flow Counters for interface %s #######\n", iface);
+	while (bpf_map_get_next_key(xflow_metric_map_fd, &flow_key, &next_flow_key) == 0) {
+		bpf_map_lookup_elem(xflow_metric_map_fd, &next_flow_key, &my_flow_counters);
 		get_ip_string(next_flow_key.saddr, saddr_string);
 		get_ip_string(next_flow_key.daddr, daddr_string);
 		printf("**** Entry : %d ****\n", entry);

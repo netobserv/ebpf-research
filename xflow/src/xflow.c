@@ -1,24 +1,11 @@
-/* SPDX-License-Identifier: GPL-2->0 */
-#include <linux/bpf.h>
-#include <linux/in.h>
+/* 
+    XFlow. A Flow-metric generator using eBPF/XDP
 
-#include <linux/if_ether.h>
-#include <bpf/bpf_helpers.h>
-#include <bpf/bpf_endian.h>
-//#include <iproute2/bpf_elf.h>
-
-
-#include "../common/parsing_helpers.h"
-#include "../common/common_defines.h"
-#include "../common/common_utils.h"
-/* Defines xdp_stats_map */
-#include "../common/xdp_stats_kern_user.h"
-#include "../common/xdp_stats_kern.h"
-
+*/
+#include "xflow_global.h"
 
 #define MYNAME "xflow"
 
-#define MAX_ENTRIES 1000
 
 /* Below is old-style map definition . TODO: add ifdef to detect */ 
 
@@ -29,13 +16,15 @@
 // 	.max_entries = MAX_ENTRIES,
 // };
 
+
+/* This Map should ideally be per-interface */
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);	
     __type(key, flow_id);
     __type(value, flow_counters);
     __uint(max_entries, MAX_ENTRIES);
     __uint(pinning, LIBBPF_PIN_BY_NAME);
-} xflow_map SEC(".maps");
+} xflow_metric_map SEC(".maps");
 
 SEC("xflow")
 int xflow_start(struct xdp_md *ctx) {
@@ -119,23 +108,17 @@ int xflow_start(struct xdp_md *ctx) {
         my_flow_id.sport = 0;
         my_flow_id.dport = 0;
     }
-    // bpf_printk(MYNAME "flow-id : src-ip %d-> dest-ip %d, proto:%d, sport:%d, dport:%d \n", 
-    //     my_flow_id.saddr, 
-    //     my_flow_id.daddr, 
-    //     my_flow_id.protocol,
-    //     my_flow_id.sport,
-    //     my_flow_id.dport);
 
     flow_counters *my_flow_counters =
-        bpf_map_lookup_elem(&xflow_map, &my_flow_id);
+        bpf_map_lookup_elem(&xflow_metric_map, &my_flow_id);
     if (my_flow_counters != NULL) {
         my_flow_counters->packets += 1;
         my_flow_counters->bytes += pkt_bytes;
-        bpf_map_update_elem(&xflow_map, &my_flow_id, my_flow_counters, BPF_EXIST);
+        bpf_map_update_elem(&xflow_metric_map, &my_flow_id, my_flow_counters, BPF_EXIST);
     } else {
         flow_counters new_flow_counter = {
             .packets = 1, .bytes=pkt_bytes};
-        int ret = bpf_map_update_elem(&xflow_map, &my_flow_id, &new_flow_counter,
+        int ret = bpf_map_update_elem(&xflow_metric_map, &my_flow_id, &new_flow_counter,
                                       BPF_NOEXIST);
         if (ret < 0) {
             bpf_printk(MYNAME "Map is full\n Work on eviction");
