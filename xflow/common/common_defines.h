@@ -27,6 +27,8 @@ struct config {
 typedef struct flow_counters_t {
 	__u32 packets;
 	__u64 bytes;
+	__u64 flow_start_ns;
+	__u64 flow_end_ns;
 } __attribute__((packed)) flow_counters;
 
 typedef struct flow_id_t {
@@ -42,6 +44,11 @@ typedef struct flow_map_t {
 
 	flow_counters counters;
 } __attribute__((packed)) flow_map;
+
+typedef struct packet_capture_config_t {
+	__u32 interface;
+	// TODO : Config
+} __attribute__((packed)) packet_capture_config;
 
 
 /* Defined in common_params.o */
