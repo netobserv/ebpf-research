@@ -31,6 +31,6 @@ In the below command, _xdp-loader_ loads xflow and attaches to the interface _en
 
 ### Unload xflow XDP program
 ```shell
-     sudo xdp-loader unload --all ens6f0np0
+     ./xflow_xdp_load.sh -i ens6f0np0 -u
 ```
 
