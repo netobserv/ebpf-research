@@ -8,10 +8,14 @@ usage()
    exit 1 
 }
 
-while getopts "i:" opt
+unload=0
+
+
+while getopts "i:u" opt
 do
    case "$opt" in
       i ) interface="$OPTARG" ;;
+      u ) unload=1 ;;
       ? ) usage ;; # Print helpFunction in case parameter is non-existent
    esac
 done
@@ -25,6 +29,12 @@ fi
 # Remove carriage return
 interface=$(echo $interface|tr -d '\n')
 
-# Load xflow using xdp-loader
-echo "sudo xdp-loader load $interface -m native src/xflow.o --pin-path /sys/fs/bpf/xflow/$interface"
-sudo xdp-loader load $interface -m native src/xflow.o --pin-path /sys/fs/bpf/xflow/$interface
+if [[ $unload -eq 1 ]]
+then
+    echo "sudo xdp-loader unload --all $interface"
+    sudo xdp-loader unload --all $interface
+else
+    # Load xflow using xdp-loader
+    echo "sudo xdp-loader load $interface -m native src/xflow.o --pin-path /sys/fs/bpf/xflow/$interface"
+    sudo xdp-loader load $interface -m native src/xflow.o --pin-path /sys/fs/bpf/xflow/$interface
+fi
