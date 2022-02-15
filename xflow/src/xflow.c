@@ -31,8 +31,6 @@ int xflow_start(struct xdp_md *ctx) {
     void *data_end = (void *)(long)ctx->data_end;
     void *data = (void *)(long)ctx->data;
     int pkt_bytes = data_end - data;
-    struct hdr_cursor nh;
-    nh.pos = data;
     flow_id my_flow_id;
     int action = XDP_PASS;
 
