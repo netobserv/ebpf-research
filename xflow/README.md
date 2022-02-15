@@ -15,7 +15,7 @@ xflow_user user-space program can be used to see the metrics at run-time.
 In the below command, _xdp-loader_ loads xflow and attaches to the interface _ens6f0np0_, and pins the path for the maps at _/sys/fs/bpf/xflow/ens6f0np0_
 
 ```shell
-     ./xflow_xdp_load.sh  -i ens6f0np0
+     ./xflow_xdp_load.sh  -i ens6f0np0 -a xdp
 ```
 
 ### View the flow-metric entries using _xflow_user_
@@ -31,6 +31,6 @@ In the below command, _xdp-loader_ loads xflow and attaches to the interface _en
 
 ### Unload xflow XDP program
 ```shell
-     ./xflow_xdp_load.sh -i ens6f0np0 -u
+     ./xflow_xdp_load.sh -i ens6f0np0 -a xdp -u
 ```
 
