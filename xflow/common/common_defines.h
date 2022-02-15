@@ -34,8 +34,8 @@ typedef struct flow_counters_t {
 typedef struct flow_id_t {
 	__u32 saddr;
 	__u32 daddr;
-	__u16 sport;
-	__u16 dport;
+	__be16 sport;
+	__be16 dport;
 	__u8  protocol;
 } __attribute__((packed)) flow_id;
 

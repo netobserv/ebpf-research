@@ -36,6 +36,9 @@ int xflow_start(struct xdp_md *ctx) {
     flow_id my_flow_id;
     int action = XDP_PASS;
 
+    // Flow Metrics
+    __u64 flow_start_time = 0;
+    __u64 flow_end_time = 0;
     /* Get Flow ID : <sourceip, destip, sourceport, destport, protocol> */
 
     struct ethhdr *eth = data;
@@ -81,6 +84,14 @@ int xflow_start(struct xdp_md *ctx) {
 
         my_flow_id.sport = tcph->source;
         my_flow_id.dport = tcph->dest;
+        if (tcph->syn) {
+            flow_start_time = bpf_ktime_get_ns();
+        }
+
+        if (tcph->fin) {
+            flow_end_time = bpf_ktime_get_ns();
+        }
+
 #ifdef EXTRA_DEBUG
         bpf_printk(MYNAME " [tcp]: %d->%d, %d\n", key.sport, key.dport,
                    new_seq_num);
@@ -114,10 +125,16 @@ int xflow_start(struct xdp_md *ctx) {
     if (my_flow_counters != NULL) {
         my_flow_counters->packets += 1;
         my_flow_counters->bytes += pkt_bytes;
+        if (flow_end_time != 0) {
+            my_flow_counters->flow_end_ns = flow_end_time;
+        }
         bpf_map_update_elem(&xflow_metric_map, &my_flow_id, my_flow_counters, BPF_EXIST);
     } else {
         flow_counters new_flow_counter = {
             .packets = 1, .bytes=pkt_bytes};
+        if (flow_start_time != 0) {
+            new_flow_counter.flow_start_ns = flow_start_time;
+        }
         int ret = bpf_map_update_elem(&xflow_metric_map, &my_flow_id, &new_flow_counter,
                                       BPF_NOEXIST);
         if (ret < 0) {

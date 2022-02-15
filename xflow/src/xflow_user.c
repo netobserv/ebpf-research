@@ -1,8 +1,6 @@
-/* SPDX-License-Identifier: GPL-2->0 */
-
-/* NOTE:
- * We have used the veth index as primary key for this Poc, a more realistic
- * implementation should use the inner ip as the primary key instead*/
+/*
+	Xflow_user : 
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,7 +11,7 @@
 #include <locale.h>
 #include <unistd.h>
 #include <time.h>
-
+#include <arpa/inet.h>
 
 #include <bpf/bpf.h>
 #include <bpf/libbpf.h>
@@ -104,26 +102,34 @@ int main(int argc, char **argv)
 
 	/* Get the flow_maps iteratively using bpf_map_get_next_key() */
 	/* TODO: Convert it into a known format */
-	int entry=0;
 	printf("####### Flow Counters for interface %s #######\n", iface);
+	printf("Flow Start time  |  Flow End Time   | Src IP Addr:Port  | Dst IP Addr:Port  |   Packets  |  Bytes     |\n");
 	while (bpf_map_get_next_key(xflow_metric_map_fd, &flow_key, &next_flow_key) == 0) {
 		bpf_map_lookup_elem(xflow_metric_map_fd, &next_flow_key, &my_flow_counters);
 		get_ip_string(next_flow_key.saddr, saddr_string);
 		get_ip_string(next_flow_key.daddr, daddr_string);
-		printf("**** Entry : %d ****\n", entry);
-		printf("Flow-id : src-ip %s -> dest-ip %s, proto:%d, sport:%d, dport:%d \n", 
-			saddr_string, 
-			daddr_string, 
-			next_flow_key.protocol,
-			next_flow_key.sport,
-			next_flow_key.dport);
-		printf("Counters : packets:%d ; bytes:%lld b\n", 
+		//printf("**** Entry : %d ****\n", entry);
+		printf("%llu | %llu | %s:%d | %s:%d | %d | %lld\n", 
+			my_flow_counters.flow_start_ns,
+			my_flow_counters.flow_end_ns,
+			saddr_string,
+			ntohs(next_flow_key.sport),
+			daddr_string,
+			ntohs(next_flow_key.dport),
 			my_flow_counters.packets,
 			my_flow_counters.bytes);
+		// printf("Flow-id : src-ip %s -> dest-ip %s, proto:%d, sport:%d, dport:%d \n", 
+		// 	saddr_string, 
+		// 	daddr_string, 
+		// 	next_flow_key.protocol,
+		// 	next_flow_key.sport,
+		// 	next_flow_key.dport);
+		// //printf("Counters : packets:%d ; bytes:%lld b\n", 
+		// 	my_flow_counters.packets,
+		// 	my_flow_counters.bytes);
 		flow_key = next_flow_key;
-		entry++;
 	}
-	printf("#######  #######\n");
+	printf("##############\n");
 
 	return EXIT_OK;
 }
