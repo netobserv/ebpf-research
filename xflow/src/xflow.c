@@ -1,6 +1,6 @@
 /* 
     XFlow. A Flow-metric generator using eBPF/XDP
-
+    This program can be hooked on to XDP using SKB/native to monitor incoming packets from an interface.
 */
 #include "xflow_global.h"
 
