@@ -19,7 +19,8 @@
 #include "../common/rewrite_helpers.h"
 #include "../common/common_defines.h"
 #include "../common/common_utils.h"
-#define MAX_ENTRIES 100
+
+#include "xflow_global.h"
 
 #define MYNAME "xflow_tc"
 
@@ -34,6 +35,7 @@ bpf_trace_printk(____fmt, sizeof(____fmt), \
 
 struct bpf_elf_map SEC("maps") xflow_metric_tc_map = {
     .type        = BPF_MAP_TYPE_HASH,	
+    .id          = 1,
     .size_key    = sizeof(flow_id),
     .size_value  = sizeof(flow_counters),
     .pinning     = PIN_GLOBAL_NS,
@@ -81,7 +83,8 @@ int xflow_start(struct __sk_buff *skb) {
     my_flow_id.saddr = iph->saddr;
     my_flow_id.daddr = iph->daddr;
     my_flow_id.protocol = iph->protocol;
-
+    my_flow_id.interface = (__u16)skb->ifindex;
+    
     if (iph->protocol == IPPROTO_TCP) {
         struct tcphdr *tcph = (struct tcphdr *)(void *)(iph + 1);
         if (tcph + 1 > data_end) {
@@ -129,7 +132,7 @@ int xflow_start(struct __sk_buff *skb) {
         my_flow_id.sport = 0;
         my_flow_id.dport = 0;
     }
-    bpf_tc_printk(MYNAME " Recording packet size=%d", pkt_bytes);
+    bpf_tc_printk(MYNAME " Recording packet size=%d, interface=%d", pkt_bytes, skb->ifindex);
     
     flow_counters *my_flow_counters =
         bpf_map_lookup_elem(&xflow_metric_tc_map, &my_flow_id);

@@ -67,7 +67,7 @@ int xflow_start(struct xdp_md *ctx) {
     my_flow_id.saddr = iph->saddr;
     my_flow_id.daddr = iph->daddr;
     my_flow_id.protocol = iph->protocol;
-
+    my_flow_id.interface = (__u16)ctx->ingress_ifindex;
     if (iph->protocol == IPPROTO_TCP) {
         struct tcphdr *tcph = (struct tcphdr *)(void *)(iph + 1);
         if (tcph + 1 > data_end) {

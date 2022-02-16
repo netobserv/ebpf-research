@@ -61,7 +61,7 @@ int parse_params(int argc, char *argv[]) {
     return 0;
 }
 
-char pin_base_dir[MAXLEN] =  "/sys/fs/bpf/xflow/";
+char xflow_pin_base_dir[MAXLEN] =  "/sys/fs/bpf/xflow/";
 
 void get_ip_string(__u32 ip, char *ip_string) {
     unsigned char bytes[4];
@@ -89,16 +89,16 @@ int main(int argc, char **argv)
 		return EXIT_FAIL_OPTION;
 	}
 
-	strcat(pin_base_dir, iface);
+	strcat(xflow_pin_base_dir, iface);
 
 	/* Open the map for geneve config */
-	xflow_metric_map_fd = open_bpf_map_file(pin_base_dir, map_name, NULL);
+	xflow_metric_map_fd = open_bpf_map_file(xflow_pin_base_dir, map_name, NULL);
 	if (xflow_metric_map_fd < 0) {
 	  	fprintf(stderr,"ERR: opening map\n");
 		return EXIT_FAIL_BPF;
 	}
 
-	printf("map dir: %s \n", pin_base_dir);
+	printf("map dir: %s \n", xflow_pin_base_dir);
 
 	/* Get the flow_maps iteratively using bpf_map_get_next_key() */
 	/* TODO: Convert it into a known format */

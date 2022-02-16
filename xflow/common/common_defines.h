@@ -37,6 +37,7 @@ typedef struct flow_id_t {
 	__be16 sport;
 	__be16 dport;
 	__u8  protocol;
+	__u16 interface;
 } __attribute__((packed)) flow_id;
 
 typedef struct flow_map_t {
