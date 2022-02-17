@@ -79,6 +79,27 @@ void get_ip_string(__u32 ip, char *ip_string) {
     snprintf(ip_string, 32, "%d.%d.%d.%d", bytes[0], bytes[1], bytes[2], bytes[3]);   
 }
 
+void get_proto_string(__u8 proto, char *proto_string) {
+	// TODO : Expand this based on https://en.wikipedia.org/wiki/List_of_IP_protocol_numbers
+	switch(proto) {
+		case 1:
+			strcpy(proto_string, "ICMP");
+			break;
+		case 2:
+			strcpy(proto_string, "IGMP");
+			break;
+		case 6:
+			strcpy(proto_string, "TCP");
+			break;
+		case 17:
+			strcpy(proto_string,"UDP");
+			break;
+		default:
+			strcpy(proto_string,"---");
+			break;
+	}
+}
+
 int main(int argc, char **argv)
 {
 	
@@ -90,6 +111,7 @@ int main(int argc, char **argv)
 	flow_counters my_flow_counters;
 	char saddr_string[32];
 	char daddr_string[32];
+	char proto_string[10];
 
 	if(parse_params(argc,argv)!=0){
 		fprintf(stderr, "ERR: parsing params\n");
@@ -111,15 +133,17 @@ int main(int argc, char **argv)
 	/* Get the flow_maps iteratively using bpf_map_get_next_key() */
 	/* TODO: Convert it into a known format */
 	printf("####### Incoming Flow Counters for interface %s(%d) #######\n", iface, ifindex);
-	printf("Flow Start time  |  Flow End Time   | Src IP Addr:Port  | Dst IP Addr:Port  |   Packets  |  Bytes     |\n");
+	printf("Flow Start time  |  Flow End Time   | Protocol | Src IP Addr:Port  | Dst IP Addr:Port  |   Packets  |  Bytes     |\n");
 	while (bpf_map_get_next_key(xflow_xdp_metric_map_fd, &flow_key, &next_flow_key) == 0) {
 		bpf_map_lookup_elem(xflow_xdp_metric_map_fd, &next_flow_key, &my_flow_counters);
 		get_ip_string(next_flow_key.saddr, saddr_string);
 		get_ip_string(next_flow_key.daddr, daddr_string);
+		get_proto_string(next_flow_key.protocol, proto_string);
 		//printf("**** Entry : %d ****\n", entry);
-		printf("%llu | %llu | %s:%d | %s:%d | %d | %lld\n", 
+		printf("%llu | %llu | %s | %s:%d | %s:%d | %d | %lld\n", 
 			my_flow_counters.flow_start_ns,
 			my_flow_counters.flow_end_ns,
+			proto_string,
 			saddr_string,
 			ntohs(next_flow_key.sport),
 			daddr_string,
@@ -139,16 +163,20 @@ int main(int argc, char **argv)
 	/* Get the flow_maps iteratively using bpf_map_get_next_key() */
 	/* TODO: Convert it into a known format */
 	printf("####### Outgoing Flow Counters for interface %s #######\n", iface);
-	printf("Flow Start time  |  Flow End Time   | Src IP Addr:Port  | Dst IP Addr:Port  |   Packets  |  Bytes     |\n");
+	printf("Flow Start time  |  Flow End Time   | Protocol | Src IP Addr:Port  | Dst IP Addr:Port  |   Packets  |  Bytes     |\n");
 	while (bpf_map_get_next_key(xflow_tc_metric_map_fd, &flow_key, &next_flow_key) == 0) {
 		bpf_map_lookup_elem(xflow_tc_metric_map_fd, &next_flow_key, &my_flow_counters);
+
 		if (next_flow_key.interface == ifindex) {
+
 			get_ip_string(next_flow_key.saddr, saddr_string);
 			get_ip_string(next_flow_key.daddr, daddr_string);
+			get_proto_string(next_flow_key.protocol, proto_string);
 			//printf("**** Entry : %d ****\n", entry);
-			printf("%llu | %llu | %s:%d | %s:%d | %d | %lld\n", 
+			printf("%llu | %llu | %s |%s:%d | %s:%d | %d | %lld\n", 
 				my_flow_counters.flow_start_ns,
 				my_flow_counters.flow_end_ns,
+				proto_string,
 				saddr_string,
 				ntohs(next_flow_key.sport),
 				daddr_string,
