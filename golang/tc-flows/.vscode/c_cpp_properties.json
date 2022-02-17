@@ -1,0 +1,13 @@
+{
+    "configurations": [
+        {
+            "name": "Linux",
+            "includePath": [
+                "${workspaceFolder}/headers"
+            ],
+            "defines": [],
+            "intelliSenseMode": "linux-clang-x64"
+        }
+    ],
+    "version": 4
+}

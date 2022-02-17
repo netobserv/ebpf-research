@@ -1,0 +1,9 @@
+{
+    "files.associations": {
+        "vmlinux.h": "c",
+        "bpf_helper_defs.h": "c",
+        "bpf_helpers.h": "c",
+        "inet.h": "c"
+    },
+    "C_Cpp.clang_format_fallbackStyle": "{ BasedOnStyle: LLVM, IndentWidth: 4, ColumnLimit: 0, SortIncludes: false}",
+}
