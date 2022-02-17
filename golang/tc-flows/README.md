@@ -4,18 +4,19 @@ Traffic report: periodically shows a list of the network traffic between two end
 aggregated by total number of packets and bytes.
 
 ```
-*** TOP TRAFFIC REPORT
-	- (TCP)	10.0.2.15:22	->	10.0.2.2:55919	(53 packets, 4946 bytes)
-	- (TCP)	10.0.2.15:22	->	10.0.2.2:50309	(15 packets, 1766 bytes)
-	- (ICMP)	10.0.2.15:0	->	104.248.30.136:0	(3 packets, 294 bytes)
-	- (ICMP)	10.0.2.15:0	->	142.250.185.3:0	(2 packets, 196 bytes)
-	- (UDP)	10.0.2.15:54365	->	10.0.2.3:53	(2 packets, 146 bytes)
-	- (UDP)	10.0.2.15:57551	->	10.0.2.3:53	(2 packets, 142 bytes)
-	- (UDP)	10.0.2.15:35855	->	171.33.132.5:123	(1 packets, 90 bytes)
-	- (UDP)	10.0.2.15:43068	->	5.9.49.67:123	(1 packets, 90 bytes)
-	- (UDP)	10.0.2.15:44396	->	10.0.2.3:53	(1 packets, 87 bytes)
-	- (UDP)	10.0.2.15:49193	->	10.0.2.3:53	(1 packets, 86 bytes)
-	- (IP)	232.138.10.0:0	->	2.15.0.0:0	(1 packets, 42 bytes)
+PROTOCOL SOURCE                DESTINATION           PACKETS BYTES
+TCP      216.58.215.142:443    10.0.2.15:56604       7688    129.18 MiB
+TCP      10.0.2.15:56604       216.58.215.142:443    6607    349.21 KiB
+TCP      10.0.2.15:22          10.0.2.2:52483        119     11.45 KiB
+TCP      10.0.2.15:44986       216.239.34.21:443     11      1.36 KiB
+ICMP     142.250.185.3:0       10.0.2.15:0           9       882
+ICMP     10.0.2.15:0           142.250.185.3:0       9       882
+UDP      10.0.2.3:53           10.0.2.15:38055       2       308
+UDP      10.0.2.3:53           10.0.2.15:33568       2       190
+UDP      10.0.2.15:33568       10.0.2.3:53           2       146
+other    53.3.10.0:0           2.3.8.0:0             2       120
+UDP      10.0.2.15:33137       10.0.2.3:53           1       86
+IP       232.138.10.0:0        2.15.0.0:0            2       84
 ```
 
 Objectives:
@@ -48,7 +49,6 @@ make generate build
 
 ## Limitations & to-do
 
-* Currently we only listen to the Egress queue. We'd also need to listen the Ingress TC list.
 * Few attributes. Missing MACs, K8s decoration, etc...
 * We don't consider connection's open/close. A more advanced reporter could also separate
   the stats data by different connections, e.g.:

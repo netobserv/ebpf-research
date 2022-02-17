@@ -54,14 +54,14 @@ type bpfSpecs struct {
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfProgramSpecs struct {
-	TcEgress *ebpf.ProgramSpec `ebpf:"tc_egress"`
+	FlowParse *ebpf.ProgramSpec `ebpf:"flow_parse"`
 }
 
 // bpfMapSpecs contains maps before they are loaded into the kernel.
 //
 // It can be passed ebpf.CollectionSpec.Assign.
 type bpfMapSpecs struct {
-	Egresses *ebpf.MapSpec `ebpf:"egresses"`
+	Flows *ebpf.MapSpec `ebpf:"flows"`
 }
 
 // bpfObjects contains all objects after they have been loaded into the kernel.
@@ -83,12 +83,12 @@ func (o *bpfObjects) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfMaps struct {
-	Egresses *ebpf.Map `ebpf:"egresses"`
+	Flows *ebpf.Map `ebpf:"flows"`
 }
 
 func (m *bpfMaps) Close() error {
 	return _BpfClose(
-		m.Egresses,
+		m.Flows,
 	)
 }
 
@@ -96,12 +96,12 @@ func (m *bpfMaps) Close() error {
 //
 // It can be passed to loadBpfObjects or ebpf.CollectionSpec.LoadAndAssign.
 type bpfPrograms struct {
-	TcEgress *ebpf.Program `ebpf:"tc_egress"`
+	FlowParse *ebpf.Program `ebpf:"flow_parse"`
 }
 
 func (p *bpfPrograms) Close() error {
 	return _BpfClose(
-		p.TcEgress,
+		p.FlowParse,
 	)
 }
 
