@@ -2,12 +2,15 @@ package connect
 
 import (
 	"encoding/binary"
+	"fmt"
 	"io"
 	"net"
+	"strconv"
 )
 
 type Protocol uint8
 type RawIP uint32
+type HumanBytes uint64
 
 type statsKey struct {
 	SrcIP    RawIP
@@ -18,7 +21,7 @@ type statsKey struct {
 }
 type RawStats struct {
 	statsKey
-	Bytes uint32
+	Bytes HumanBytes
 }
 type Stats struct {
 	RawStats
@@ -36,15 +39,17 @@ func ReadRaw(reader io.Reader) (RawStats, error) {
 	return egress, err
 }
 
-func (reg *Registry) Accum(egress RawStats) {
-	if stored, ok := reg.elements[egress.statsKey]; !ok {
-		reg.elements[egress.statsKey] = &Stats{
-			RawStats: egress,
-			Packets:  1,
+func (reg *Registry) Accum(stats <-chan RawStats) {
+	for entry := range stats {
+		if stored, ok := reg.elements[entry.statsKey]; !ok {
+			reg.elements[entry.statsKey] = &Stats{
+				RawStats: entry,
+				Packets:  1,
+			}
+		} else {
+			stored.Packets++
+			stored.Bytes += entry.Bytes
 		}
-	} else {
-		stored.Packets++
-		stored.Bytes += egress.Bytes
 	}
 }
 
@@ -95,4 +100,23 @@ func (r RawIP) String() string {
 	ip := make(net.IP, 4)
 	binary.BigEndian.PutUint32(ip, uint32(r))
 	return ip.String()
+}
+
+const (
+	kibi = 1024
+	mibi = kibi * 1024
+	gibi = mibi * 1024
+)
+
+func (b HumanBytes) String() string {
+	if b < kibi {
+		return strconv.FormatUint(uint64(b), 10)
+	}
+	if b < mibi {
+		return fmt.Sprintf("%.2f KiB", float64(b)/float64(kibi))
+	}
+	if b < gibi {
+		return fmt.Sprintf("%.2f MiB", float64(b)/float64(mibi))
+	}
+	return fmt.Sprintf("%.2f MiB", float64(b)/float64(gibi))
 }

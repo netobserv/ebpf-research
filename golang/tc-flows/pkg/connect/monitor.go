@@ -17,26 +17,32 @@ import (
 //go:generate bpf2go -cc $BPF_CLANG -cflags $BPF_CFLAGS bpf ../../bcc/flows.c -- -I../../headers
 
 const (
-	qdiscType = "clsact"
+	qdiscType       = "clsact"
+	readStatsBuffer = 100
 )
 
 type Monitor struct {
 	interfaceName string
 	objects       bpfObjects
 	qdisc         *netlink.GenericQdisc
-	filter        *netlink.BpfFilter
-	netEvents     *ringbuf.Reader
+	egressFilter  *netlink.BpfFilter
+	ingressFilter *netlink.BpfFilter
+	flows         *ringbuf.Reader
 	stats         Registry
+	readStats     chan RawStats
 }
 
 func NewMonitor(iface string) Monitor {
 	return Monitor{
 		interfaceName: iface,
+		readStats:     make(chan RawStats, readStatsBuffer),
 		stats:         Registry{elements: map[statsKey]*Stats{}},
 	}
 }
 
 func (m *Monitor) Start() error {
+	go m.stats.Accum(m.readStats)
+
 	// Allow the current process to lock memory for eBPF resources.
 	if err := rlimit.RemoveMemlock(); err != nil {
 		return fmt.Errorf("removing mem lock: %w", err)
@@ -66,33 +72,56 @@ func (m *Monitor) Start() error {
 			return fmt.Errorf("failed to create clsact qdisc on %q: %s %T", m.interfaceName, err)
 		}
 	}
-	filterAttrs := netlink.FilterAttrs{
+	// Fetch events on egress
+	egressAttrs := netlink.FilterAttrs{
 		LinkIndex: ipvlan.Attrs().Index,
 		Parent:    netlink.HANDLE_MIN_EGRESS,
 		Handle:    netlink.MakeHandle(0, 1),
 		Protocol:  3,
 		Priority:  1,
 	}
-	m.filter = &netlink.BpfFilter{
-		FilterAttrs:  filterAttrs,
-		Fd:           m.objects.TcEgress.FD(),
-		Name:         "tc/egress",
+	m.egressFilter = &netlink.BpfFilter{
+		FilterAttrs:  egressAttrs,
+		Fd:           m.objects.FlowParse.FD(),
+		Name:         "tc/flow_parse",
 		DirectAction: true,
 	}
-	if err = netlink.FilterAdd(m.filter); err != nil {
+	if err = netlink.FilterAdd(m.egressFilter); err != nil {
 		if errors.Is(err, fs.ErrExist) {
-			log.Printf("cls_bpf filter already exists. Ignoring")
+			log.Printf("egress filter already exists. Ignoring")
 		} else {
-			return fmt.Errorf("failed to create cls_bpf filter on %q: %w", m.interfaceName, err)
+			return fmt.Errorf("failed to create egress filter: %w", err)
 		}
 	}
-	if m.netEvents, err = ringbuf.NewReader(m.objects.bpfMaps.Egresses); err != nil {
-		return fmt.Errorf("accessing to ringbuffer: %w", err)
+	// Fetch events on ingress
+	ingressAttrs := netlink.FilterAttrs{
+		LinkIndex: ipvlan.Attrs().Index,
+		Parent:    netlink.HANDLE_MIN_INGRESS,
+		Handle:    netlink.MakeHandle(0, 1),
+		Protocol:  3,
+		Priority:  1,
+	}
+	m.ingressFilter = &netlink.BpfFilter{
+		FilterAttrs:  ingressAttrs,
+		Fd:           m.objects.FlowParse.FD(),
+		Name:         "tc/flow_parse",
+		DirectAction: true,
+	}
+	if err = netlink.FilterAdd(m.ingressFilter); err != nil {
+		if errors.Is(err, fs.ErrExist) {
+			log.Printf("ingress filter already exists. Ignoring")
+		} else {
+			return fmt.Errorf("failed to create ingress filter: %w", err)
+		}
 	}
 
+	// read events from igress+egress ringbuffer
+	if m.flows, err = ringbuf.NewReader(m.objects.Flows); err != nil {
+		return fmt.Errorf("accessing to ringbuffer: %w", err)
+	}
 	go func() {
 		for {
-			event, err := m.netEvents.Read()
+			event, err := m.flows.Read()
 			if err != nil {
 				if errors.Is(err, ringbuf.ErrClosed) {
 					log.Println("Received signal, exiting..")
@@ -107,7 +136,7 @@ func (m *Monitor) Start() error {
 				log.Printf("reading ringbuf event: %s", err)
 				continue
 			}
-			m.stats.Accum(rawSample)
+			m.readStats <- rawSample
 		}
 	}()
 	return nil
@@ -127,15 +156,21 @@ func (m *Monitor) Stop() error {
 			errs = append(errs, err)
 		}
 	}
-	doClose(m.netEvents)
+	close(m.readStats)
+	doClose(m.flows)
 	doClose(&m.objects)
 	if m.qdisc != nil {
 		if err := netlink.QdiscDel(m.qdisc); err != nil {
 			errs = append(errs, err)
 		}
 	}
-	if m.filter != nil {
-		if err := netlink.FilterDel(m.filter); err != nil {
+	if m.egressFilter != nil {
+		if err := netlink.FilterDel(m.egressFilter); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if m.ingressFilter != nil {
+		if err := netlink.FilterDel(m.ingressFilter); err != nil {
 			errs = append(errs, err)
 		}
 	}

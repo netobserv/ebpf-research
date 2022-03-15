@@ -31,16 +31,16 @@ func main() {
 	go func() {
 		for {
 			time.Sleep(*reportFreq)
-			fmt.Println("*** TOP TRAFFIC REPORT")
+			fmt.Println("PROTOCOL SOURCE                DESTINATION           PACKETS BYTES")
 			stats := monitor.Stats()
 			sort.SliceStable(stats, func(i, j int) bool {
 				return stats[i].Bytes > stats[j].Bytes
 			})
 			for _, egress := range stats {
-				fmt.Printf("\t- (%s)\t%s:%d\t->\t%s:%d\t(%d packets, %d bytes)\n",
+				fmt.Printf("%-8s %-21s %-21s %-7d %-7s\n",
 					egress.Protocol,
-					egress.SrcIP, egress.SrcPort,
-					egress.DstIP, egress.DstPort,
+					fmt.Sprintf("%s:%d", egress.SrcIP, egress.SrcPort),
+					fmt.Sprintf("%s:%d", egress.DstIP, egress.DstPort),
 					egress.Packets, egress.Bytes)
 			}
 		}
