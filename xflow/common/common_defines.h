@@ -1,18 +1,19 @@
 #ifndef __COMMON_DEFINES_H
 #define __COMMON_DEFINES_H
 
-#include <net/if.h>
+#include <sys/types.h>
+//#include <net/if.h>
 #include <linux/types.h>
 #include <stdbool.h>
-
+#define IFSIZE 16
 struct config {
 	__u32 xdp_flags;
 	int ifindex;
 	char *ifname;
-	char ifname_buf[IF_NAMESIZE];
+	char ifname_buf[IFSIZE];
 	int redirect_ifindex;
 	char *redirect_ifname;
-	char redirect_ifname_buf[IF_NAMESIZE];
+	char redirect_ifname_buf[IFSIZE];
 	bool do_unload;
 	bool reuse_maps;
 	char pin_dir[512];
@@ -29,6 +30,7 @@ typedef struct flow_counters_t {
 	__u64 bytes;
 	__u64 flow_start_ns;
 	__u64 flow_end_ns;
+	__u64 pkt_counter;
 } __attribute__((packed)) flow_counters;
 
 typedef struct flow_id_t {
@@ -40,11 +42,10 @@ typedef struct flow_id_t {
 	__u16 interface;
 } __attribute__((packed)) flow_id;
 
-typedef struct flow_map_t {
+typedef struct flow_record_t {
 	flow_id id;
-
 	flow_counters counters;
-} __attribute__((packed)) flow_map;
+} __attribute__((packed)) flow_record;
 
 typedef struct packet_capture_config_t {
 	__u32 interface;

@@ -4,6 +4,7 @@
 
 #include <linux/types.h>
 
-char * get_ip_string(__u32 ip);
+void get_ip_string(__u32 ip, char *ip_string);
+void get_proto_string(__u8 proto, char *proto_string);
 
 #endif /* __COMMON_UTILS_H */

@@ -45,3 +45,14 @@ The below command using tc qdisc to attach xflow_tc to the interface.
 ```shell
      ./xflow_xdp_load.sh -i ens6f0np0 -a tc -u
 ```
+
+## Xflow with ringbuffer-only
+[xflow_ringbuf_test.c](src/xflow_ringbuf_test.c)) does the same job of capturing flows, however instead of maintaining a hash-map in the data-plane, it sends the flow-records to userspace program using ring-buffer. This program's purpose is to mainly measure and compare the performance against the other hash-map based approach.
+
+### Load & start the program
+```shell
+     cd src/
+     ./xflow_ringbuf_test_user -i ens6f0np0
+```
+
+This should load the program, attach it to the Egree TC hook point of the interface.

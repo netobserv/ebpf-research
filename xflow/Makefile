@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: (GPL-2.0 OR BSD-2-Clause)
 
-XDP_TARGETS  := src/xflow src/xflow_tc
+XDP_TARGETS  := src/xflow src/xflow_tc src/xflow_ringbuf_test
 
-USER_TARGETS := src/xflow_user
+USER_TARGETS := src/xflow_user src/xflow_ringbuf_test_user
 USER_LIBS    := -lbpf -lm
 
 LIBBPF_DIR = ./libbpf/src/
