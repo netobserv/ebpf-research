@@ -8,7 +8,7 @@ usage()
    echo -e "\t-a Attach type (xdp/tc)"
    echo -e "\t-u [optional] Unload the existing program"
    echo -e "\t-s [optional] Use SKB mode to load the xdp program"
-   exit 1 
+   exit 1
 }
 
 unload=0
@@ -60,10 +60,12 @@ elif [ $attach == "tc" ]; then
       echo "sudo tc qdisc del dev $interface clsact"
       sudo tc qdisc del dev $interface clsact
    else
-      echo "sudo tc qdisc add dev $interface clsact" 
+      echo "sudo tc qdisc add dev $interface clsact"
       sudo tc qdisc add dev $interface clsact
       echo "sudo tc filter add dev $interface egress bpf da object-file src/xflow_tc.o section xflow"
       sudo tc filter add dev $interface egress bpf da object-file src/xflow_tc.o section xflow
+      echo "sudo tc filter add dev $interface ingress bpf da object-file src/xflow_tc.o section xflow"
+      sudo tc filter add dev $interface ingress bpf da object-file src/xflow_tc.o section xflow
    fi
 else
    echo "Undefined"

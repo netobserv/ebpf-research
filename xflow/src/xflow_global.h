@@ -15,13 +15,13 @@
 #include "../common/xdp_stats_kern_user.h"
 #include "../common/xdp_stats_kern.h"
 
-#define MAX_ENTRIES 1000
-/* 
+#define MAX_ENTRIES 10000000
+/*
     Global Maps : Common maps for each ebpf program attached to the interface.
  */
 
 // struct {
-//     __uint(type, BPF_MAP_TYPE_HASH);	
+//     __uint(type, BPF_MAP_TYPE_HASH);
 //     __type(key, __u32);  // Interface
 //     __type(value, packet_capture_config); //
 //     __uint(max_entries, MAX_ENTRIES);

@@ -1,5 +1,5 @@
 /*
-	Xflow_ringbuf_test_user : 
+	Xflow_ringbuf_test_user : User-space program to load and consume the flow record entries of the ring-buffer
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,7 +23,6 @@
 #include <linux/if_ether.h>
 #include <linux/if_link.h> /* depend on kernel-headers installed */
 #include <linux/bpf.h>
-#include "xflow_ringbuf_test.skel.h"
 
 #include "../common/common_user_bpf_xdp.h"
 #include "../common/common_params.h"
@@ -34,12 +33,12 @@
 
 #define TASK_COMM_LEN 16
 #define MAX_FILENAME_LEN 512
-#define TC_HOOK_EXISTS 
+#define TC_HOOK_EXISTS
 static volatile bool exiting = false;
 struct bpf_tc_hook my_tc_hook;
-struct bpf_tc_opts my_tc_opts;    
+struct bpf_tc_opts my_tc_opts;
 char iface[32];
-unsigned int ifindex; 
+unsigned int ifindex;
 uint64_t pkt_counter = 0;
 struct hashmap *flowmap;
 
@@ -96,7 +95,7 @@ int flow_compare(const void *a, const void *b, void *udata) {
         } else {
             return 1;
         }
-        
+
 }
 
 bool flow_iter(const void *item, void *udata) {
@@ -108,7 +107,7 @@ bool flow_iter(const void *item, void *udata) {
 	get_ip_string(my_flow_record->id.daddr, daddr_string);
 	get_proto_string(my_flow_record->id.protocol, proto_string);
 
-	printf("%llu | %llu | %llu | %s | %s:%d | %s:%d | %d | %lld\n", 
+	printf("%llu | %llu | %llu | %s | %s:%d | %s:%d | %d | %lld\n",
         my_flow_record->counters.pkt_counter,
 		my_flow_record->counters.flow_start_ns,
 		my_flow_record->counters.flow_end_ns,
@@ -118,7 +117,7 @@ bool flow_iter(const void *item, void *udata) {
 		daddr_string,
 		ntohs(my_flow_record->id.dport),
 		my_flow_record->counters.packets,
-		my_flow_record->counters.bytes);    
+		my_flow_record->counters.bytes);
     return true;
 }
 
@@ -134,33 +133,15 @@ int handle_event(void *ctx, void *data, size_t data_sz) {
     const flow_record *my_flow_record = data;
 
     hashmap_set(flowmap, my_flow_record);
+    pkt_counter++;
 
-    if (my_flow_record->counters.pkt_counter - pkt_counter != 1) {
-        printf("Potential Drop!!\n");
-    }
-    pkt_counter = my_flow_record->counters.pkt_counter;
-    printf("%d\n",pkt_counter);
-	// get_ip_string(my_flow_record->id.saddr, saddr_string);
-	// get_ip_string(my_flow_record->id.daddr, daddr_string);
-	// get_proto_string(my_flow_record->id.protocol, proto_string);
-
-	// printf("%llu | %llu | %llu | %s | %s:%d | %s:%d | %d | %lld\n", 
-    //     my_flow_record->counters.pkt_counter,
-	// 	my_flow_record->counters.flow_start_ns,
-	// 	my_flow_record->counters.flow_end_ns,
-	// 	proto_string,
-	// 	saddr_string,
-	// 	ntohs(my_flow_record->id.sport),
-	// 	daddr_string,
-	// 	ntohs(my_flow_record->id.dport),
-	// 	my_flow_record->counters.packets,
-	// 	my_flow_record->counters.bytes);    
+    // if (my_flow_record->counters.pkt_counter - pkt_counter != 1) {
+    //     printf("Potential Drop!!\n");
+    // }
+    // pkt_counter = my_flow_record->counters.pkt_counter;
+    //printf("%lu.. %lu\n", my_flow_record->counters.pkt_counter, pkt_counter);
 
     return 0;
-}
-
-int tc_attach () {
-
 }
 
 void  print_usage(){
@@ -177,23 +158,33 @@ int parse_params(int argc, char *argv[]) {
     int opt= 0;
     int long_index =0;
 
-    while ((opt = getopt_long(argc, argv,"i:", 
+    while ((opt = getopt_long(argc, argv,"i:",
                    long_options, &long_index )) != -1) {
       switch (opt) {
-		  case 'i' : 
+		  case 'i' :
 		  	strncpy(iface, optarg, 32);
 			ifindex = if_nametoindex(iface);
 		  	break;
-		  default: 
-		  	print_usage(); 
+		  default:
+		  	print_usage();
 		  	exit(EXIT_FAILURE);
         }
     }
     return 0;
 }
 
+void *print_flows( void *ptr )
+{
+    printf("Flow Start time  |  Flow End Time   | Protocol | Src IP Addr:Port  | Dst IP Addr:Port  |   Packets  |  Bytes     |\n");
+    while (1) {
+      hashmap_scan(flowmap, flow_iter, NULL);
+      printf("Total pkts received = %lu\n", pkt_counter);
+      sleep(1);
+    }
+}
 int main(int argc, char *argv[])
 {
+    pthread_t flow_scan_thread;
     const char *bpf_file = "xflow_ringbuf_test.o";
     struct bpf_object *obj;
     int prog_fd = -1;
@@ -205,10 +196,10 @@ int main(int argc, char *argv[])
     char error[32];
 
     if(parse_params(argc,argv)!=0){
-		fprintf(stderr, "ERR: parsing params\n");
-		return EXIT_FAIL_OPTION;
-	}
-    flowmap= hashmap_new(sizeof(flow_record), 0, 0, 0, 
+  		fprintf(stderr, "ERR: parsing params\n");
+  		return EXIT_FAIL_OPTION;
+	   }
+    flowmap= hashmap_new(sizeof(flow_record), 0, 0, 0,
                                      flow_hash, flow_compare, NULL, NULL);
     printf("Running on interface idx-%d\n", index);
 
@@ -274,9 +265,12 @@ int main(int argc, char *argv[])
         return 1;
     }
     printf("Attached %s program to tc hook point at ifindex:%d\n", bpf_file, ifindex);
+
+    pthread_create( &flow_scan_thread, NULL, print_flows, NULL);
+
     while (!exiting)
     {
-        err = ring_buffer__poll(ring_buffer, 1000 /* timeout, ms */);
+        err = ring_buffer__poll(ring_buffer, 1 /* timeout, ms */);
         /* Ctrl-C will cause -EINTR */
         if (err == -EINTR)
         {
@@ -294,7 +288,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-// Skeleton method of attaching 
+// Skeleton method of attaching
 // Involves additional step of creating skeleton.h file
 // int main(int argc, char **argv)
 // {

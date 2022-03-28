@@ -1,5 +1,5 @@
 /*
-	Xflow_user : 
+	Xflow_user :
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,7 +35,7 @@
 
 #define MAXLEN 64
 char iface[32];
-unsigned int ifindex; 
+unsigned int ifindex;
 void  print_usage(){
 	printf("./xflow_user -i <interface> \n");
 }
@@ -50,15 +50,15 @@ int parse_params(int argc, char *argv[]) {
     int opt= 0;
     int long_index =0;
 
-    while ((opt = getopt_long(argc, argv,"i:", 
+    while ((opt = getopt_long(argc, argv,"i:",
                    long_options, &long_index )) != -1) {
       switch (opt) {
-		  case 'i' : 
+		  case 'i' :
 		  	strncpy(iface, optarg, 32);
 			ifindex = if_nametoindex(iface);
 		  	break;
-		  default: 
-		  	print_usage(); 
+		  default:
+		  	print_usage();
 		  	exit(EXIT_FAILURE);
         }
     }
@@ -73,7 +73,7 @@ char tc_map_name[] = "xflow_metric_tc_map";
 
 
 int main(int argc, char **argv) {
-	
+
 	int xflow_xdp_metric_map_fd;
 	int xflow_tc_metric_map_fd;
 
@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
 		get_ip_string(next_flow_key.daddr, daddr_string);
 		get_proto_string(next_flow_key.protocol, proto_string);
 		//printf("**** Entry : %d ****\n", entry);
-		printf("%llu | %llu | %s | %s:%d | %s:%d | %d | %lld\n", 
+		printf("%llu | %llu | %s | %s:%d | %s:%d | %d | %lld\n",
 			my_flow_counters.flow_start_ns,
 			my_flow_counters.flow_end_ns,
 			proto_string,
@@ -144,7 +144,7 @@ int main(int argc, char **argv) {
 			get_ip_string(next_flow_key.daddr, daddr_string);
 			get_proto_string(next_flow_key.protocol, proto_string);
 			//printf("**** Entry : %d ****\n", entry);
-			printf("%llu | %llu | %s |%s:%d | %s:%d | %d | %lld\n", 
+			printf("%llu | %llu | %s |%s:%d | %s:%d | %d | %lld\n",
 				my_flow_counters.flow_start_ns,
 				my_flow_counters.flow_end_ns,
 				proto_string,

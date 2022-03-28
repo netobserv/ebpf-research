@@ -42,6 +42,19 @@ typedef struct flow_id_t {
 	__u16 interface;
 } __attribute__((packed)) flow_id;
 
+typedef struct flow_def_t {
+	__u32 saddr;
+	__u32 daddr;
+	__be16 sport;
+	__be16 dport;
+} __attribute__((packed)) flow_def;
+
+typedef struct flow_id_seq_t {
+	flow_def id;
+	__be32 seq;
+} __attribute__((packed)) flow_id_seq;
+
+
 typedef struct flow_record_t {
 	flow_id id;
 	flow_counters counters;
@@ -52,6 +65,16 @@ typedef struct packet_capture_config_t {
 	// TODO : Config
 } __attribute__((packed)) packet_capture_config;
 
+
+typedef struct timestamps_t {
+    __u64 send_tstamp;
+    __u32 rtt;
+}__attribute__((packed)) timestamps;
+
+typedef struct flow_report_t {
+    __u32 avg_rtt;
+    __u64 fct;
+}__attribute__((packed)) flow_report;
 
 /* Defined in common_params.o */
 extern int verbose;
