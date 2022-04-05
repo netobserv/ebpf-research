@@ -1,0 +1,7 @@
+attrs==21.4.0
+iniconfig==1.1.1
+py==1.11.0
+pyparsing==3.0.7
+pytest==6.2.5
+scapy==2.4.3
+toml==0.10.2
