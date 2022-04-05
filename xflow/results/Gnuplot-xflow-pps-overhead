@@ -1,0 +1,30 @@
+# Script that plots frequency of Similar Journey count
+#set terminal postscript eps enhanced dashed color font 'Helvetica,14'
+#set term cairopdf dashed monochrome enhanced  font 'Helvetica,14'
+set term pdf size 10,8 enhanced color enhanced  font 'Helvetica,36'
+# Parameter
+set xlabel ""
+set ylabel "Mpps"
+set key top right
+
+
+#set size square
+set datafile separator ","
+#set grid ytics lc rgb "#000000" lw 1 lt 0
+#set grid xtics lc rgb "#000000" lw 1 lt 0
+set style fill solid border -1
+set style histogram errorbars gap 2 lw 1
+set xtics  offset -0.1,0
+
+
+set yrange [0:5]
+
+
+set output "xflow_pps_overhead.pdf"
+
+#set xtic offset 1
+
+plot 'xflow_pps_overhead.csv'  using 2:3:4:xtic(1)  with hist  axes x1y1 lw 3 lt 1 lc rgb "0x4daf4a" title "w/o Pinning" , \
+     'xflow_pps_overhead.csv'  using 5:6:7:xtic(1)  with hist  axes x1y1 lw 3 lt 1 lc rgb "0xe34a33" title "w Pinning", \
+     'xflow_pps_overhead.csv'  using 0:($2+1):(sprintf("%3.2f",$2))  with labels offset -2.3,-2.9 title "", \
+     'xflow_pps_overhead.csv'  using 0:($5+1):(sprintf("%3.2f",$5))  with labels offset 2.3,-3.9 title ""
