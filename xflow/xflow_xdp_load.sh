@@ -62,10 +62,24 @@ elif [ $attach == "tc" ]; then
    else
       echo "sudo tc qdisc add dev $interface clsact"
       sudo tc qdisc add dev $interface clsact
-      echo "sudo tc filter add dev $interface egress bpf da object-file src/xflow_tc.o section xflow"
-      sudo tc filter add dev $interface egress bpf da object-file src/xflow_tc.o section xflow
-      echo "sudo tc filter add dev $interface ingress bpf da object-file src/xflow_tc.o section xflow"
-      sudo tc filter add dev $interface ingress bpf da object-file src/xflow_tc.o section xflow
+      echo "sudo tc filter add dev $interface egress bpf da object-file src/xflow_array.o section tc_egress"
+      sudo tc filter add dev $interface egress bpf da object-file src/xflow_array.o section tc_egress
+      echo "sudo tc filter add dev $interface ingress bpf da object-file src/xflow_array.o section tc_ingress"
+      sudo tc filter add dev $interface ingress bpf da object-file src/xflow_array.o section tc_ingress
+   fi
+elif [ $attach == "tchash" ]; then
+   echo "tc"
+   if [[ $unload -eq 1 ]]
+   then
+      echo "sudo tc qdisc del dev $interface clsact"
+      sudo tc qdisc del dev $interface clsact
+   else
+      echo "sudo tc qdisc add dev $interface clsact"
+      sudo tc qdisc add dev $interface clsact
+      echo "sudo tc filter add dev $interface egress bpf da object-file src/xflow_hash.o section tc_egress"
+      sudo tc filter add dev $interface egress bpf da object-file src/xflow_hash.o section tc_egress
+      echo "sudo tc filter add dev $interface ingress bpf da object-file src/xflow_hash.o section tc_ingress"
+      sudo tc filter add dev $interface ingress bpf da object-file src/xflow_hash.o section tc_ingress
    fi
 else
    echo "Undefined"
