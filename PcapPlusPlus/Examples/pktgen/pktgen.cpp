@@ -15,6 +15,8 @@
 #include "EthLayer.h"
 #include "IPv4Layer.h"
 #include "IcmpLayer.h"
+#include "UdpLayer.h"
+#include "DnsLayer.h"
 #include "Packet.h"
 #include "PcapLiveDeviceList.h"
 #include "NetworkUtils.h"
@@ -176,7 +178,7 @@ void monitorPps () {
 	}
 }
 
-bool sendMessages() {
+bool sendIcmpMessages() {
 	static uint16_t ipID = 0x1234;
 
 	printf("Starting to send packets\n");
@@ -211,13 +213,53 @@ bool sendMessages() {
 	}
 }
 
+bool sendUdpMessages() {
+	static uint16_t ipID = 0x1234;
+
+	printf("Starting to send packets\n");
+	pcpp::Packet packet;
+
+	// create the different layers
+
+	// Eth first
+	pcpp::EthLayer ethLayer(senderMacAddr, catcherMacAddr, PCPP_ETHERTYPE_IP);
+
+	// then IPv4 (IPv6 is not supported)
+	pcpp::IPv4Layer ipLayer(senderIP, catcherIP);
+	ipLayer.getIPv4Header()->timeToLive = 128;
+	// set and increment the IP ID
+	ipLayer.getIPv4Header()->ipId = pcpp::hostToNet16(ipID++);
+
+	// then UDP
+	pcpp::UdpLayer newUdpLayer(12345, 53);
+	// create a new DNS layer
+	pcpp::DnsLayer newDnsLayer;
+	newDnsLayer.addQuery("www.ebay.com", pcpp::DNS_TYPE_A, pcpp::DNS_CLASS_IN);
+
+	// create an new packet and add all layers to it
+	packet.addLayer(&ethLayer);
+	packet.addLayer(&ipLayer);
+	packet.addLayer(&newUdpLayer);
+	packet.addLayer(&newDnsLayer);
+
+	packet.computeCalculateFields();
+	pcpp::RawPacket* rawPacket = packet.getRawPacket();
+	const uint8_t *rawData = rawPacket->getRawData();
+	int packlen = rawPacket->getRawDataLen();
+	while (1) {
+		// send the packet through the device
+		err = dev->sendPacket(rawData, packlen, false);
+		//printf("%d\n", err);
+	}
+}
+
 /**
  * main method of this ICMP pitcher
  */
 int main(int argc, char* argv[])
 {
 	pcpp::AppName::init(argc, argv);
-	constexpr unsigned num_threads = 30;
+	constexpr unsigned num_threads = 40;
 
 	pcpp::IPv4Address senderIP("10.10.10.2");
 	pcpp::IPv4Address receiverIP("10.10.10.1");
@@ -234,11 +276,11 @@ int main(int argc, char* argv[])
 
 	std::vector<std::thread> threads;
 	for (unsigned i = 0; i < num_threads; ++i) {
-		cpu_set_t cpuset;
-		CPU_ZERO(&cpuset);
-		CPU_SET(i+1, &cpuset);
+		// cpu_set_t cpuset;
+		// CPU_ZERO(&cpuset);
+		// CPU_SET(i+1, &cpuset);
 		//threads[i](sendMessages);
-		threads.push_back(std::thread(sendMessages));
+		threads.push_back(std::thread(sendUdpMessages));
 		//int rc = pthread_setaffinity_np(threads[i].native_handle(),
 		//									sizeof(cpu_set_t), &cpuset);
 	}
