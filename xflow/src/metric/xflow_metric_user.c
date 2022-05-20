@@ -479,7 +479,6 @@ void *print_complete_flows( void *ptr )
     while (1) {
         if (complete_update == true) {
           hashmap_scan(complete_flow_map, flow_iter, NULL);
-          printf("Total pkts received = %lu\n", pkt_counter);
           complete_update = false;
         }
       sleep(1);
