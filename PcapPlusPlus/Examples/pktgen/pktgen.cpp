@@ -1,9 +1,5 @@
 /**
- * ICMP file transfer utility - pitcher
- * ========================================
- * This utility demonstrates how to transfer files between 2 machines using only ICMP messages.
- * This is the pitcher part of the utility
- * For more information please refer to README.md
+ * Packet Generator
  */
 
 #include <stdlib.h>
@@ -20,12 +16,12 @@
 #include "Packet.h"
 #include "PcapLiveDeviceList.h"
 #include "NetworkUtils.h"
-#include "Common.h"
 #include "SystemUtils.h"
 #include <thread>
 #include <stdexcept>
 #include <stdio.h>
 #include <string>
+#include <getopt.h>
 
 
 #define SEND_TIMEOUT_BEFORE_FT_START 3
@@ -34,58 +30,44 @@
 #define NUM_OF_ABORT_MESSAGES_TO_SEND 5
 
 #define MAX_PACKETS 1000000000 // 1B
-#ifdef _MSC_VER
-#include <windows.h>
 
-void usleep(__int64 usec)
+
+void printUsage()
 {
-	HANDLE timer;
-	LARGE_INTEGER ft;
+	std::string thisSideInterface = "interface";
+	std::string otherSideIP = "ip";
 
-	ft.QuadPart = -(10 * usec); // Convert to 100 nanosecond interval, negative value indicates relative time
-
-	timer = CreateWaitableTimer(NULL, TRUE, NULL);
-	SetWaitableTimer(timer, &ft, 0, NULL, NULL, 0);
-	WaitForSingleObject(timer, INFINITE);
-	CloseHandle(timer);
+	std::cout << std::endl
+		<< "Usage:" << std::endl
+		<< "------" << std::endl
+		<< pcpp::AppName::get() << " [-h] [-v] [-l] -i " << thisSideInterface << " -d " << otherSideIP
+		<< std::endl
+		<< "Options:" << std::endl
+		<< std::endl
+		<< "    -i " << thisSideInterface << " : Use the specified interface. Can be interface name (e.g eth0) or interface IPv4 address" << std::endl
+		<< "    -d " << otherSideIP << "       :" << " IPv4 address" << std::endl
+		<< "    -n " << "threads"   << "       : Number of threads" << std::endl
+		<< std::endl;
 }
-#endif
 
-/**
- * A struct used for start sending a file to the catcher
- */
-struct IcmpFileTransferStartSend
-{
-	uint16_t icmpMsgId;
-	pcpp::IPv4Address pitcherIPAddr;
-	pcpp::IPv4Address catcherIPAddr;
-};
 
-/**
- * A struct used for start receiving a file from the catcher
- */
-struct IcmpFileTransferStartRecv
-{
-	pcpp::IPv4Address pitcherIPAddr;
-	pcpp::IPv4Address catcherIPAddr;
-	bool gotFileTransferStartMsg;
-	std::string fileName;
-};
 
-/**
- * A struct used for receiving file content from the catcher
- */
-struct IcmpFileContentData
-{
-	pcpp::IPv4Address pitcherIPAddr;
-	pcpp::IPv4Address catcherIPAddr;
-	std::ofstream* file;
-	uint16_t expectedIcmpId;
-	uint32_t fileSize;
-	uint32_t MBReceived;
-	bool fileTransferCompleted;
-	bool fileTransferError;
-};
+#define EXIT_WITH_ERROR_PRINT_USAGE(reason) do { \
+	printUsage(); \
+	std::cout << std::endl << "ERROR: " << reason << std::endl << std::endl; \
+	exit(1); \
+	} while(0)
+
+#define EXIT_WITH_ERROR(reason) do { \
+		std::cout << std::endl << "ERROR: " << reason << std::endl << std::endl; \
+		exit(1); \
+		} while(0)
+
+#define EXIT_WITH_ERROR_AND_RUN_COMMAND(reason, command) do { \
+		command; \
+		std::cout << std::endl << "ERROR: " << reason << std::endl << std::endl; \
+		exit(1); \
+		} while(0)
 
 
 
@@ -100,6 +82,13 @@ int packetsPerSec = 0;
 size_t packetSize = 64;
 pcpp::PcapLiveDevice* dev;
 int err;
+
+static struct option IcmpFTOptions[] =
+{
+	{"interface",  required_argument, 0, 'i'},
+	{"dest-ip",  required_argument, 0, 'd'},
+	{"num-threads", optional_argument, 0, 'n'}
+};
 
 void initPacket () {
 	// identify the interface to listen and send packets to
@@ -181,7 +170,7 @@ void monitorPps () {
 bool sendIcmpMessages() {
 	static uint16_t ipID = 0x1234;
 
-	printf("Starting to send packets\n");
+	//printf("Starting to send packets\n");
 	pcpp::Packet packet;
 
 	// create the different layers
@@ -216,7 +205,7 @@ bool sendIcmpMessages() {
 bool sendUdpMessages() {
 	static uint16_t ipID = 0x1234;
 
-	printf("Starting to send packets\n");
+	//printf("Starting to send packets\n");
 	pcpp::Packet packet;
 
 	// create the different layers
@@ -228,13 +217,13 @@ bool sendUdpMessages() {
 	pcpp::IPv4Layer ipLayer(senderIP, catcherIP);
 	ipLayer.getIPv4Header()->timeToLive = 128;
 	// set and increment the IP ID
-	ipLayer.getIPv4Header()->ipId = pcpp::hostToNet16(ipID++);
+	ipLayer.getIPv4Header()->ipId = pcpp::hostToNet16(ipID);
 
 	// then UDP
 	pcpp::UdpLayer newUdpLayer(12345, 53);
 	// create a new DNS layer
 	pcpp::DnsLayer newDnsLayer;
-	newDnsLayer.addQuery("www.ebay.com", pcpp::DNS_TYPE_A, pcpp::DNS_CLASS_IN);
+	newDnsLayer.addQuery("www.redhat.com", pcpp::DNS_TYPE_A, pcpp::DNS_CLASS_IN);
 
 	// create an new packet and add all layers to it
 	packet.addLayer(&ethLayer);
@@ -253,29 +242,80 @@ bool sendUdpMessages() {
 	}
 }
 
+
+void readCommandLineArguments(int argc, char* argv[],
+		pcpp::IPv4Address& myIP, pcpp::IPv4Address& otherSideIP, int& numThreads)
+{
+	std::string interfaceNameOrIP;
+	std::string otherSideIPAsString;
+
+
+	int optionIndex = 0;
+	int opt = 0;
+	while((opt = getopt_long(argc, argv, "i:d:n:", IcmpFTOptions, &optionIndex)) != -1)
+	{
+		switch (opt)
+		{
+			case 0:
+				break;
+			case 'i':
+				interfaceNameOrIP = optarg;
+				break;
+			case 'd':
+				otherSideIPAsString = optarg;
+				break;
+			case 'n':
+				numThreads = atoi(optarg);
+				break;
+			default:
+				printUsage();
+				exit(-1);
+		}
+	}
+	// extract my IP address by interface name or IP address string
+	if (interfaceNameOrIP.empty())
+		EXIT_WITH_ERROR_PRINT_USAGE("Please provide interface name or IP");
+
+	pcpp::IPv4Address interfaceIP(interfaceNameOrIP);
+	if (!interfaceIP.isValid())
+	{
+		pcpp::PcapLiveDevice* dev = pcpp::PcapLiveDeviceList::getInstance().getPcapLiveDeviceByName(interfaceNameOrIP);
+		if (dev == NULL)
+			EXIT_WITH_ERROR_PRINT_USAGE("Cannot find interface by provided name");
+
+		myIP = dev->getIPv4Address();
+	}
+	else
+		myIP = interfaceIP;
+
+	// validate pitcher/catcher IP address
+	if (otherSideIPAsString.empty())
+		EXIT_WITH_ERROR_PRINT_USAGE("Please provide IP address");
+
+	pcpp::IPv4Address tempIP = pcpp::IPv4Address(otherSideIPAsString);
+	if (!tempIP.isValid())
+		EXIT_WITH_ERROR_PRINT_USAGE("Invalid IP address");
+	otherSideIP = tempIP;
+}
+
 /**
- * main method of this ICMP pitcher
+ * main method of PacketGen
  */
 int main(int argc, char* argv[])
 {
 	pcpp::AppName::init(argc, argv);
-	constexpr unsigned num_threads = 40;
-
-	pcpp::IPv4Address senderIP("10.10.10.2");
-	pcpp::IPv4Address receiverIP("10.10.10.1");
-	int packetsPerSec = 0;
-	size_t packetSize = 64;
+	int numThreads = 40;
 
 	// disable stdout buffering so all std::cout command will be printed immediately
 	setbuf(stdout, NULL);
 
 
 	// read and parse command line arguments. This method also takes care of arguments correctness. If they're not correct, it'll exit the program
-	//readCommandLineArguments(argc, argv, "pitcher", "catcher", sender, receiver, pitcherIP, catcherIP, fileNameToSend, packetsPerSec, blockSize);
+	readCommandLineArguments(argc, argv, senderIP, catcherIP, numThreads);
 	initPacket();
 
 	std::vector<std::thread> threads;
-	for (unsigned i = 0; i < num_threads; ++i) {
+	for (int i = 0; i < numThreads; ++i) {
 		// cpu_set_t cpuset;
 		// CPU_ZERO(&cpuset);
 		// CPU_SET(i+1, &cpuset);
@@ -285,37 +325,10 @@ int main(int argc, char* argv[])
 		//									sizeof(cpu_set_t), &cpuset);
 	}
 
-	printf("Total Threads = %d\n", threads.size());
-	//
-	// std::thread th1(sendMessages);
-	//
-	// std::thread th2(sendMessages);
-	// std::thread th3(sendMessages);
-	// std::thread th4(sendMessages);
-	// std::thread th5(sendMessages);
-	// std::thread th6(sendMessages);
-	// std::thread th7(sendMessages);
-	// std::thread th8(sendMessages);
-	// std::thread th9(sendMessages);
-	// std::thread th10(sendMessages);
-	//sendPackets(senderIP, receiverIP, packetSize, packetsPerSec);
-	// send a file to the catcher
-	// if (sender)
-	// 	sendFile(fileNameToSend, pitcherIP, catcherIP, blockSize, packetsPerSec);
-	// // receive a file from the catcher
-	// else if (receiver)
-	// 	receiveFile(pitcherIP, catcherIP, packetsPerSec);
+	printf("Total Threads = %ld\n", threads.size());
+
 	std::thread monitor(monitorPps);
-	// th1.join();
-	// th2.join();
-	// th3.join();
-	// th4.join();
-	// th5.join();
-	// th6.join();
-	// th7.join();
-	// th8.join();
-	// th9.join();
-	// th10.join();
+
 	monitor.join();
 	dev->close();
 
