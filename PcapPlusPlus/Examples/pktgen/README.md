@@ -4,5 +4,5 @@
 make
 
 ## To Run
-sudo ./Bin/pktgen -i <interface>
+sudo ./Bin/pktgen -i <Source Interface/IP> -d <Dest IP>
 	
