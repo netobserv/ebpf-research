@@ -22,7 +22,8 @@
 #include <stdio.h>
 #include <string>
 #include <getopt.h>
-
+#include <csignal>
+#include <iostream>
 
 #define SEND_TIMEOUT_BEFORE_FT_START 3
 
@@ -40,13 +41,14 @@ void printUsage()
 	std::cout << std::endl
 		<< "Usage:" << std::endl
 		<< "------" << std::endl
-		<< pcpp::AppName::get() << " [-h] [-v] [-l] -i " << thisSideInterface << " -d " << otherSideIP
+		<< pcpp::AppName::get() << " [-h] [-v] [-l] -i " << thisSideInterface << " -d " << otherSideIP << "[-r]"
 		<< std::endl
 		<< "Options:" << std::endl
 		<< std::endl
 		<< "    -i " << thisSideInterface << " : Use the specified interface. Can be interface name (e.g eth0) or interface IPv4 address" << std::endl
 		<< "    -d " << otherSideIP << "       :" << " IPv4 address" << std::endl
 		<< "    -n " << "threads"   << "       : Number of threads" << std::endl
+		<< "    -r " << "threads"   << "       : Number of threads" << std::endl
 		<< std::endl;
 }
 
@@ -81,6 +83,7 @@ pcpp::MacAddress catcherMacAddr;
 int packetsPerSec = 0;
 size_t packetSize = 64;
 pcpp::PcapLiveDevice* dev;
+long startingPktCount = 0;
 int err;
 
 static struct option IcmpFTOptions[] =
@@ -90,6 +93,10 @@ static struct option IcmpFTOptions[] =
 	{"num-threads", optional_argument, 0, 'n'}
 };
 
+
+void initDevice () {
+
+}
 void initPacket () {
 	// identify the interface to listen and send packets to
 	dev = pcpp::PcapLiveDeviceList::getInstance().getPcapLiveDeviceByIp(senderIP);
@@ -135,17 +142,34 @@ long cexec (std::string command) {
    return tx;
 }
 
-void monitorPps () {
+void sigHandler(int sig) {
+	long rxPkts;
+	long totalPkts;
+    printf("Stopping..\n");
+	std::string mycommand = "sudo cat /sys/class/net/"+ dev->getName()+"/statistics/rx_packets";
+	std::cout<<mycommand<<std::endl;
+
+	rxPkts = cexec(mycommand);
+	totalPkts = rxPkts - startingPktCount;
+	printf("Ending with rxpkts at = %lu\n",  rxPkts);
+
+	printf("Total Pkts = %lu\n", totalPkts);
+	exit(1);
+}
+
+void monitorTxPps () {
 	long txPkts;
 	long newtxPkts;
 	long aggtxPkts = 0;
 	long intervalPkts;
 	float aggPps = 0.0;
 	float avgPps;
-	std::string mycommand = "sudo cat /sys/class/net/ens6f0np0/statistics/tx_packets";
+	std::string mycommand = "sudo cat /sys/class/net/"+ dev->getName()+"/statistics/tx_packets";
+	std::cout<<mycommand<<std::endl;
 	txPkts = cexec(mycommand);
 
-	printf("starting with txpkts = %lu\n", txPkts);
+	//std::cout << dev->getName() << std::endl;
+	printf("Starting with txpkts at = %lu\n",  txPkts);
 	int round=0;
 	sleep(1);
 	while (1) {
@@ -164,6 +188,52 @@ void monitorPps () {
 			printf("Avg PPS = %f Mpps\n", avgPps);
 			exit(1);
 		}
+	}
+}
+
+void monitorRxPps () {
+	long txPkts;
+	long newtxPkts;
+	long aggtxPkts = 0;
+	long intervalPkts;
+	float aggPps = 0.0;
+	float avgPps;
+
+	// identify the interface to listen and send packets to
+	dev = pcpp::PcapLiveDeviceList::getInstance().getPcapLiveDeviceByIp(senderIP);
+	if (dev == NULL)
+		EXIT_WITH_ERROR("Cannot find network interface with IP '" << senderIP << "'");
+
+	// try to open the interface (device)
+	if (!dev->open())
+		EXIT_WITH_ERROR("Cannot open network interface ");
+
+	//std::cout << dev->getName() << std::endl;
+
+	std::string mycommand = "sudo cat /sys/class/net/"+ dev->getName()+"/statistics/rx_packets";
+	std::cout<<mycommand<<std::endl;
+
+	txPkts = cexec(mycommand);
+	startingPktCount = txPkts;
+	printf("Starting with rxpkts at = %lu\n",  txPkts);
+	int round=0;
+	sleep(1);
+	while (1) {
+		newtxPkts = cexec(mycommand);
+		intervalPkts = newtxPkts - txPkts;
+		float rate = (float)(intervalPkts)/(float)1000000;
+		aggPps +=rate;
+		aggtxPkts+=intervalPkts;
+		printf("Rx traffic at %f Mpps, total pkts recvd =%lu\n", rate, aggtxPkts);
+		txPkts = newtxPkts;
+		sleep(1);
+		round++;
+		// if (aggtxPkts > 100000000) {
+		// 	printf("Total pkts sent =%lu\n", aggtxPkts);
+		// 	avgPps = aggPps/(float)round;
+		// 	printf("Avg PPS = %f Mpps\n", avgPps);
+		// 	exit(1);
+		// }
 	}
 }
 
@@ -202,7 +272,7 @@ bool sendIcmpMessages() {
 	}
 }
 
-bool sendUdpMessages() {
+bool sendUdpMessages(int port) {
 	static uint16_t ipID = 0x1234;
 
 	//printf("Starting to send packets\n");
@@ -220,11 +290,17 @@ bool sendUdpMessages() {
 	ipLayer.getIPv4Header()->ipId = pcpp::hostToNet16(ipID);
 
 	// then UDP
+	// Multi-flow
+	//pcpp::UdpLayer newUdpLayer(12345+port, 53);
+	// Single-Flow
 	pcpp::UdpLayer newUdpLayer(12345, 53);
+
 	// create a new DNS layer
 	pcpp::DnsLayer newDnsLayer;
-	newDnsLayer.addQuery("www.redhat.com", pcpp::DNS_TYPE_A, pcpp::DNS_CLASS_IN);
-
+	newDnsLayer.addQuery("www.redhat.com/", pcpp::DNS_TYPE_A, pcpp::DNS_CLASS_IN);
+	// for (int i=0;i<10;i++) {
+	// 	newDnsLayer.addQuery("www.redhat.com/4232323123123123213213123/34234324234234/32423423432423/2324324324233432423", pcpp::DNS_TYPE_A, pcpp::DNS_CLASS_IN);
+	// }
 	// create an new packet and add all layers to it
 	packet.addLayer(&ethLayer);
 	packet.addLayer(&ipLayer);
@@ -235,6 +311,7 @@ bool sendUdpMessages() {
 	pcpp::RawPacket* rawPacket = packet.getRawPacket();
 	const uint8_t *rawData = rawPacket->getRawData();
 	int packlen = rawPacket->getRawDataLen();
+	printf("Packet Len=%d\n", packlen);
 	while (1) {
 		// send the packet through the device
 		err = dev->sendPacket(rawData, packlen, false);
@@ -244,7 +321,7 @@ bool sendUdpMessages() {
 
 
 void readCommandLineArguments(int argc, char* argv[],
-		pcpp::IPv4Address& myIP, pcpp::IPv4Address& otherSideIP, int& numThreads)
+		pcpp::IPv4Address& myIP, pcpp::IPv4Address& otherSideIP, int& numThreads, bool& receive)
 {
 	std::string interfaceNameOrIP;
 	std::string otherSideIPAsString;
@@ -252,7 +329,7 @@ void readCommandLineArguments(int argc, char* argv[],
 
 	int optionIndex = 0;
 	int opt = 0;
-	while((opt = getopt_long(argc, argv, "i:d:n:", IcmpFTOptions, &optionIndex)) != -1)
+	while((opt = getopt_long(argc, argv, "i:d:n:r", IcmpFTOptions, &optionIndex)) != -1)
 	{
 		switch (opt)
 		{
@@ -267,6 +344,9 @@ void readCommandLineArguments(int argc, char* argv[],
 			case 'n':
 				numThreads = atoi(optarg);
 				break;
+			case 'r':
+				receive = true;
+				break;
 			default:
 				printUsage();
 				exit(-1);
@@ -275,6 +355,7 @@ void readCommandLineArguments(int argc, char* argv[],
 	// extract my IP address by interface name or IP address string
 	if (interfaceNameOrIP.empty())
 		EXIT_WITH_ERROR_PRINT_USAGE("Please provide interface name or IP");
+
 
 	pcpp::IPv4Address interfaceIP(interfaceNameOrIP);
 	if (!interfaceIP.isValid())
@@ -288,6 +369,9 @@ void readCommandLineArguments(int argc, char* argv[],
 	else
 		myIP = interfaceIP;
 
+	if (receive) {
+		return;
+	}
 	// validate pitcher/catcher IP address
 	if (otherSideIPAsString.empty())
 		EXIT_WITH_ERROR_PRINT_USAGE("Please provide IP address");
@@ -305,31 +389,41 @@ int main(int argc, char* argv[])
 {
 	pcpp::AppName::init(argc, argv);
 	int numThreads = 40;
+	bool justMonitor = false;
+	std::vector<std::thread> threads;
 
 	// disable stdout buffering so all std::cout command will be printed immediately
 	setbuf(stdout, NULL);
 
+	/* Clean handling of Ctrl-C */
+    signal(SIGINT, sigHandler);
+    signal(SIGTERM, sigHandler);
 
 	// read and parse command line arguments. This method also takes care of arguments correctness. If they're not correct, it'll exit the program
-	readCommandLineArguments(argc, argv, senderIP, catcherIP, numThreads);
-	initPacket();
+	readCommandLineArguments(argc, argv, senderIP, catcherIP, numThreads, justMonitor);
 
-	std::vector<std::thread> threads;
-	for (int i = 0; i < numThreads; ++i) {
-		// cpu_set_t cpuset;
-		// CPU_ZERO(&cpuset);
-		// CPU_SET(i+1, &cpuset);
-		//threads[i](sendMessages);
-		threads.push_back(std::thread(sendUdpMessages));
-		//int rc = pthread_setaffinity_np(threads[i].native_handle(),
-		//									sizeof(cpu_set_t), &cpuset);
+ 	if (!justMonitor) {
+		initPacket();
+
+		for (int i = 0; i < numThreads; ++i) {
+			// cpu_set_t cpuset;
+			// CPU_ZERO(&cpuset);
+			// CPU_SET(i+1, &cpuset);
+			//threads[i](sendMessages);
+			threads.push_back(std::thread(sendUdpMessages, i));
+			//int rc = pthread_setaffinity_np(threads[i].native_handle(),
+			//									sizeof(cpu_set_t), &cpuset);
+		}
+
+		printf("Total Sender Threads = %ld\n", threads.size());
+		printf("Starting Monitor\n");
+		std::thread monitorTx(monitorTxPps);
+		monitorTx.join();
+	} else {
+		printf("Starting Monitor\n");
+		std::thread monitorRx(monitorRxPps);
+		monitorRx.join();
 	}
 
-	printf("Total Threads = %ld\n", threads.size());
-
-	std::thread monitor(monitorPps);
-
-	monitor.join();
 	dev->close();
-
 }
