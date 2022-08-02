@@ -87,10 +87,10 @@ elif [ $type == "cpuhash" ]; then
    else
       echo "sudo tc qdisc add dev $interface clsact"
       sudo tc qdisc add dev $interface clsact
-      echo "sudo tc filter add dev $interface egress bpf da object-file src/xflow_cpuhash.o section tc_egress"
-      sudo tc filter add dev $interface egress bpf da object-file src/xflow_cpuhash.o section tc_egress
-      echo "sudo tc filter add dev $interface ingress bpf da object-file src/xflow_cpuhash.o section tc_ingress"
-      sudo tc filter add dev $interface ingress bpf da object-file src/xflow_cpuhash.o section tc_ingress
+      echo "sudo tc filter add dev $interface egress bpf da object-file src/xflow_percpu_hash.o section tc_egress"
+      sudo tc filter add dev $interface egress bpf da object-file src/xflow_percpu_hash.o section tc_egress
+      echo "sudo tc filter add dev $interface ingress bpf da object-file src/xflow_percpu_hash.o section tc_ingress"
+      sudo tc filter add dev $interface ingress bpf da object-file src/xflow_percpu_hash.o section tc_ingress
    fi
 elif [ $type == "ringbuf" ]; then
    if [[ $unload -eq 1 ]]
@@ -98,7 +98,7 @@ elif [ $type == "ringbuf" ]; then
       echo "sudo tc qdisc del dev $interface clsact"
       sudo tc qdisc del dev $interface clsact
    else
-      ./src/xflow_ringbuf_test_user -i $interface
+       cd src;./xflow_ringbuf_user -i $interface
    fi
 else
    echo "Undefined Map type"
