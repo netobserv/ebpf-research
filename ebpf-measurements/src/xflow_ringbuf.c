@@ -81,11 +81,6 @@ int xflow_ringbuf_test_start (struct __sk_buff *skb) {
     __u64 flow_end_time = 0;
     // Get Flow ID : <sourceip, destip, sourceport, destport, protocol>
 
-    flow_record *flow_event = bpf_ringbuf_reserve(&flow_records, sizeof(flow_record), 0);
-    if (!flow_event) {
-        bpf_tc_printk(MYNAME "Ring buf reserve failed");
-        return rc;
-    }
     // Get Eth header
     struct ethhdr *eth = data;
     if ((void *)(eth + 1) > data_end) {
@@ -196,6 +191,12 @@ int xflow_ringbuf_test_start (struct __sk_buff *skb) {
     //     flow_event->id = my_flow_id;
     //     bpf_ringbuf_submit(flow_event, 0);
     // }
+    flow_record *flow_event = bpf_ringbuf_reserve(&flow_records, sizeof(flow_record), 0);
+    if (!flow_event) {
+        bpf_tc_printk(MYNAME "Ring buf reserve failed");
+        return rc;
+    }
+
     if (flow_start_time != 0) {
       my_flow_counters.flow_start_ns = flow_start_time;
     }

@@ -185,7 +185,7 @@ void *print_flows( void *ptr )
 int main(int argc, char *argv[])
 {
     pthread_t flow_scan_thread;
-    const char *bpf_file = "xflow_ringbuf_test2.o";
+    const char *bpf_file = "xflow_ringbuf.o";
     struct bpf_object *obj;
     int prog_fd = -1;
     int my_tc_prog_fd = -1;

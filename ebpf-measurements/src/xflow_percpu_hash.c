@@ -32,28 +32,14 @@ bpf_trace_printk(____fmt, sizeof(____fmt), \
 })
 
 
-// struct {
-//     __uint(type, BPF_MAP_TYPE_RINGBUF);
-//     __uint(max_entries, 1 << 24);
-// } flow_maps SEC(".maps");
 
-
-struct bpf_elf_map SEC("maps") xflow_metric_tc_map = {
-    .type        = BPF_MAP_TYPE_HASH,
-    .id          = 1,
-    .size_key    = sizeof(flow_id), // sequence number
-    .size_value  = sizeof(flow_counters), // time
-    .pinning     = PIN_GLOBAL_NS,
-    .max_elem    = MAX_ENTRIES,
-};
-//
-// struct {
-//     __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-//     __type(key, flow_id);
-//     __type(value, flow_counters);
-//     __uint(max_entries, MAX_ENTRIES);
-//     __uint(pinning, LIBBPF_PIN_BY_NAME);
-// } xflow_metric_tc_map SEC(".maps");
+struct {
+    __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
+    __type(key, flow_id);
+    __type(value, flow_counters);
+    __uint(max_entries, MAX_ENTRIES);
+    __uint(pinning, LIBBPF_PIN_BY_NAME);
+} xflow_metric_tc_map SEC(".maps");
 
 static inline int record_packet(struct __sk_buff *skb) {
     void *data_end = (void *)(long)skb->data_end;

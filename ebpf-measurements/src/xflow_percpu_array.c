@@ -35,36 +35,13 @@ bpf_trace_printk(____fmt, sizeof(____fmt), \
 #define lock_xadd(ptr, val)	((void) __sync_fetch_and_add(ptr, val))
 #endif
 
-// struct {
-//     __uint(type, BPF_MAP_TYPE_RINGBUF);
-//     __uint(max_entries, 1 << 24);
-// } flow_maps SEC(".maps");
-
-
-// struct bpf_elf_map SEC("maps") rtt_map = {
-//     .type        = BPF_MAP_TYPE_HASH,
-//     .id          = 1,
-//     .size_key    = sizeof(__be32), // sequence number
-//     .size_value  = sizeof(__u64), // time
-//     .pinning     = PIN_GLOBAL_NS,
-//     .max_elem    = MAX_ENTRIES,
-// };
-
 struct {
     __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
     __type(key, __u32);
     __type(value, __u32);
     __uint(max_entries, MAX_ENTRIES);
     __uint(pinning, LIBBPF_PIN_BY_NAME);
-} xflow_index_array SEC(".maps");
-
-struct {
-    __uint(type, BPF_MAP_TYPE_PERCPU_ARRAY);
-    __type(key, __u32);
-    __type(value, flow_rec);
-    __uint(max_entries, MAX_ENTRIES);
-    __uint(pinning, LIBBPF_PIN_BY_NAME);
-} xflow_metric_array SEC(".maps");
+} xflow_index_cpuarray SEC(".maps");
 
 /*
 
@@ -179,16 +156,16 @@ static int record_packet(struct __sk_buff *skb) {
     my_flow_id.bytes = pkt_bytes;
 
     __u32 *index;
-    index = bpf_map_lookup_elem(&xflow_index_array, &fixed_index);
+    index = bpf_map_lookup_elem(&xflow_index_cpuarray, &fixed_index);
     if (index != NULL) {
-        bpf_map_update_elem(&xflow_metric_array, index, &my_flow_id, BPF_EXIST);
+        bpf_map_update_elem(&xflow_index_cpuarray, index, &my_flow_id, BPF_EXIST);
         lock_xadd(index, 1);
         *index = *index % MAX_ENTRIES;
-        bpf_map_update_elem(&xflow_index_array, &fixed_index, index, BPF_EXIST);
+        bpf_map_update_elem(&xflow_index_cpuarray, &fixed_index, index, BPF_EXIST);
         //bpf_tc_printk(MYNAME "index = %d", *index);
     } else {
         __u32 init_index = 0;
-        bpf_map_update_elem(&xflow_index_array, &fixed_index, &init_index, BPF_EXIST);
+        bpf_map_update_elem(&xflow_index_cpuarray, &fixed_index, &init_index, BPF_EXIST);
     }
     return rc;
 }

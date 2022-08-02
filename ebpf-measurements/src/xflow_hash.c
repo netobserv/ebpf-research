@@ -32,28 +32,15 @@ bpf_trace_printk(____fmt, sizeof(____fmt), \
 })
 
 
-// struct {
-//     __uint(type, BPF_MAP_TYPE_RINGBUF);
-//     __uint(max_entries, 1 << 24);
-// } flow_maps SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __type(key, flow_id);
+    __type(value, flow_counters);
+    __uint(max_entries, MAX_ENTRIES);
+    __uint(pinning, LIBBPF_PIN_BY_NAME);
+} xflow_metric_tc_hash_map SEC(".maps");
 
-struct bpf_elf_map SEC("maps") xflow_metric_tc_map = {
-    .type        = BPF_MAP_TYPE_HASH,
-    .id          = 1,
-    .size_key    = sizeof(flow_id), // sequence number
-    .size_value  = sizeof(flow_counters), // time
-    .pinning     = PIN_GLOBAL_NS,
-    .max_elem    = MAX_ENTRIES,
-};
-//
-// struct {
-//     __uint(type, BPF_MAP_TYPE_PERCPU_HASH);
-//     __type(key, flow_id);
-//     __type(value, flow_counters);
-//     __uint(max_entries, MAX_ENTRIES);
-//     __uint(pinning, LIBBPF_PIN_BY_NAME);
-// } xflow_metric_tc_map SEC(".maps");
 
 static inline int record_packet(struct __sk_buff *skb) {
     void *data_end = (void *)(long)skb->data_end;
@@ -146,21 +133,21 @@ static inline int record_packet(struct __sk_buff *skb) {
     //bpf_tc_printk(MYNAME " Recording packet size=%d, interface=%d", pkt_bytes, skb->ifindex);
 
     flow_counters *my_flow_counters =
-        bpf_map_lookup_elem(&xflow_metric_tc_map, &my_flow_id);
+        bpf_map_lookup_elem(&xflow_metric_tc_hash_map, &my_flow_id);
     if (my_flow_counters != NULL) {
         my_flow_counters->packets += 1;
         my_flow_counters->bytes += pkt_bytes;
         if (flow_end_time != 0) {
             my_flow_counters->flow_end_ns = flow_end_time;
         }
-        bpf_map_update_elem(&xflow_metric_tc_map, &my_flow_id, my_flow_counters, BPF_EXIST);
+        bpf_map_update_elem(&xflow_metric_tc_hash_map, &my_flow_id, my_flow_counters, BPF_EXIST);
     } else {
         flow_counters new_flow_counter = {
             .packets = 1, .bytes=pkt_bytes};
         if (flow_start_time != 0) {
             new_flow_counter.flow_start_ns = flow_start_time;
         }
-        int ret = bpf_map_update_elem(&xflow_metric_tc_map, &my_flow_id, &new_flow_counter,
+        int ret = bpf_map_update_elem(&xflow_metric_tc_hash_map, &my_flow_id, &new_flow_counter,
                                       BPF_NOEXIST);
         if (ret < 0) {
             bpf_tc_printk(MYNAME "Map is full\n Work on eviction");
